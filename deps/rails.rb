@@ -26,6 +26,10 @@ def parse_gem_deps
   parse_rails_dep + parse_config_gem_deps
 end
 
+dep 'new rails repo' do
+
+end
+
 dep 'gems installed' do
   setup {
     parse_gem_deps.map {|gem_spec|
@@ -66,6 +70,20 @@ end
 
 dep 'deployed app' do
   met? { File.directory? pathify var(:rails_root) / 'app' }
+end
+
+dep 'build rails app' do
+  requires 'development dir', 'rails project', 'new git repo', 'standard git ignore', 'git full commit'
+end
+
+dep 'rails project' do
+  met? { File.directory? pathify var(:development_directory) / var(:new_project) }
+  meet {
+    set :rails_root, (pathify(var(:development_directory) / var(:new_project)))
+    in_dir var(:development_directory) do
+      shell "rails #{var(:new_project).to_s}"
+    end
+  }
 end
 
 gem 'rails'

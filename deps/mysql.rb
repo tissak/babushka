@@ -32,6 +32,7 @@ pkg 'mysql software' do
   installs {
     apt %w[mysql-server libmysqlclient15-dev]
     macports 'mysql5-server'
+    homebrew 'mysql'
   }
   provides 'mysql'
   after {

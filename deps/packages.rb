@@ -3,7 +3,10 @@ pkg 'build-essential' do
   provides 'gcc', 'g++', 'make', 'ld'
 end
 pkg 'coreutils' do
-  installs { macports 'coreutils' }
+  installs { 
+    macports 'coreutils' 
+    homebrew 'coreutils'
+  }
   provides 'gecho'
   after {
     in_dir '/opt/local/bin' do
@@ -32,6 +35,7 @@ pkg 'git' do
   installs {
     apt 'git-core'
     macports 'git-core +svn +bash_completion'
+    homebrew 'git'
   }
 end
 pkg 'htop'
