@@ -5,22 +5,18 @@ include Babushka::LoggerHelpers
 include Babushka::DepHelpers
 include Babushka::ShellHelpers
 
+Dep.clear!
+
 require 'spec'
 include Spec::DSL::Main
 
 def tmp_prefix
-  "#{'/private' if osx?}/tmp/rspec/its_ok_if_a_test_deletes_this"
+  "#{'/private' if host.osx?}/tmp/rspec/its_ok_if_a_test_deletes_this"
 end
 
 FileUtils.mkdir_p tmp_prefix unless File.exists? tmp_prefix
 
 module Babushka
-  class Logger
-    def self.log message, opts = {}, &block
-      # Don't log while running specs.
-      yield if block_given?
-    end
-  end
   class VersionOf
     # VersionOf#== should return false in testing unless other is also a VersionOf.
     def == other
@@ -30,4 +26,8 @@ module Babushka
       end
     end
   end
+end
+
+def print_log message, opts
+  # Don't log while running specs.
 end

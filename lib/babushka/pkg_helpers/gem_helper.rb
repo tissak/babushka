@@ -6,9 +6,11 @@ module Babushka
     def manager_key; :gem end
     def manager_dep; 'rubygems' end
 
-    def install! pkgs
+    def _install! pkgs, opts
       pkgs.each {|pkg|
-        log_shell "Installing #{pkg} via #{manager_key}", "#{pkg_cmd} install #{pkg.name}#{" --version '#{pkg.version}'" unless pkg.version.blank?}", :sudo => true
+        log_shell "Installing #{pkg} via #{manager_key}",
+          "#{pkg_cmd} install #{cmdline_spec_for pkg} #{opts}",
+          :sudo => should_sudo?
       }
     end
 
@@ -34,6 +36,9 @@ module Babushka
       installed = shell("gem list --local #{pkg_name}").split("\n").detect {|l| /^#{pkg_name}\b/ =~ l }
       versions = (installed || "#{pkg_name} ()").scan(/.*\(([0-9., ]*)\)/).flatten.first || ''
       versions.split(/[^0-9.]+/).sort.map(&:to_version)
+    end
+    def should_sudo?
+      super || !File.writable?(gem_root)
     end
   end
   end

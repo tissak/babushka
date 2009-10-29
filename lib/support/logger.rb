@@ -47,13 +47,17 @@ module Babushka
     end
 
     def log message, opts = {}, &block
+      # now = Time.now
+      # print "#{now.to_i}.#{now.usec}: ".ljust(20) unless opts[:debug]
       print_log indentation, opts unless opts[:indentation] == false
       if block_given?
         print_log "#{message} {\n".colorize('grey'), opts
         @@indentation_level += 1
         returning yield do |result|
           @@indentation_level -= 1
-          if opts[:closing_status] == :dry_run
+          if opts[:closing_status] == :status_only
+            log '}'.colorize('grey') + ' ' + "#{result ? TickChar : CrossChar}".colorize(result ? 'green' : 'red'), opts
+          elsif opts[:closing_status] == :dry_run
             log '}'.colorize('grey') + ' ' + "#{result ? TickChar : '~'} #{message}".colorize(result ? 'green' : 'blue'), opts
           elsif opts[:closing_status]
             log '}'.colorize('grey') + ' ' + "#{result ? TickChar : CrossChar} #{message}".colorize(result ? 'green' : 'red'), opts

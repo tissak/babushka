@@ -1,5 +1,5 @@
 def ssh_conf_path file
-  "/etc#{'/ssh' if linux?}/#{file}_config"
+  "/etc#{'/ssh' if host.linux?}/#{file}_config"
 end
 
 dep 'hostname', :for => :linux do
@@ -38,22 +38,23 @@ end
 dep 'admins can sudo' do
   requires 'admin group'
   met? { !sudo('cat /etc/sudoers').split("\n").grep(/^%admin/).empty? }
-  meet { append_to_file '%admin  ALL=(ALL) ALL', '/etc/sudoers' }
+  meet { append_to_file '%admin  ALL=(ALL) ALL', '/etc/sudoers', :sudo => true }
 end
 
 dep 'admin group' do
   met? { grep /^admin\:/, '/etc/group' }
-  meet { shell "groupadd admin" }
+  meet { sudo 'groupadd admin' }
 end
 
 dep 'build tools' do
   requires {
-    osx 'xcode tools'
-    linux ['build-essential', 'autoconf']
+    on :osx, 'xcode tools'
+    on :snow_leopard, 'llvm in path'
+    on :linux, 'build-essential', 'autoconf'
   }
 end
 
-dep 'tmp cleaning grace period', :for => :linux do
+dep 'tmp cleaning grace period', :for => :ubuntu do
   met? { !grep(/^[^#]*TMPTIME=0/, "/etc/default/rcS") }
   meet { change_line "TMPTIME=0", "TMPTIME=30", "/etc/default/rcS" }
 end

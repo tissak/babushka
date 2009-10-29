@@ -131,11 +131,10 @@ describe "in_dir" do
 
   it "should yield if no chdir is required" do
     has_yielded = false
-    l = L{
+    in_dir(@original_pwd) {
       Dir.pwd.should == @original_pwd
       has_yielded = true
     }
-    in_dir @original_pwd, &l
     has_yielded.should be_true
   end
   it "should change dir for the duration of the block" do
@@ -188,7 +187,7 @@ end
 
 describe "cmd_dir" do
   it "should return the cmd_dir of an existing command" do
-    cmd_dir('ruby').should == `which ruby`.chomp.gsub('/ruby', '')
+    cmd_dir('ruby').should == `which ruby`.chomp.gsub(/\/ruby$/, '')
   end
   it "should return nil for nonexistent commands" do
     cmd_dir('nonexistent').should be_nil

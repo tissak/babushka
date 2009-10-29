@@ -6,22 +6,23 @@ module Babushka
     def manager_key; :brew end
     def manager_dep; 'homebrew' end
 
-    def setup_for_install_of dep, pkgs
-      log "setup_for_install_of #{dep.name}"
-      setup_homebrew_env_if_required
-      require_pkg_deps_for dep, pkgs if check_for_formulas pkgs
+    def _install! pkgs, opts
+      check_for_formulas(pkgs) && pkgs.all? {|pkg|
+        log "Installing #{pkg} via #{manager_key}" do
+          shell(
+            "#{pkg_cmd} install #{cmdline_spec_for pkg} #{opts}",
+            :sudo => should_sudo?,
+            :log => true,
+            :closing_status => :status_only
+          )
+        end
+      }
     end
 
-    def install! pkgs
-      pkgs.all? {|pkg|
-        log_shell_with_a_block_to_scan_stdout_for_apps_that_have_broken_return_values(
-          "Installing #{pkg} via #{manager_key}",
-          "#{pkg_cmd} install #{cmdline_spec_for pkg}",
-          :sudo => should_sudo
-        ) {|shell|
-          shell.result && shell.stdout["\033[1;31m==>\033[0;0;1m Error\033[0;0m:"].nil?
-        }
-      }
+    def brew_path_for pkg_name
+      if active_version = active_version_of(pkg_name)
+        installed_pkgs_path / pkg_name / active_version
+      end
     end
 
 
@@ -54,6 +55,10 @@ module Babushka
       Dir[formulas_path / '*.rb'].map {|i| File.basename i, '.rb' }
     end
 
+    def active_version_of pkg_name
+      (shell("brew version #{pkg_name}") || '').split(' ', 2).last
+    end
+
     def versions_of pkg
       pkg_name = pkg.respond_to?(:name) ? pkg.name : pkg
       installed = Dir[
@@ -76,33 +81,8 @@ module Babushka
       prefix / 'Library/Homebrew'
     end
 
-    def setup_homebrew_env_if_required
-      $:.unshift ENV['RUBYLIB'] = homebrew_lib_path unless $:.include? homebrew_lib_path
-    end
-
-    def require_pkg_deps_for dep, pkgs
-      pkgs.all? {|pkg| require_deps_for dep, pkg }
-    end
-
-    def require_deps_for dep, pkg
-      IO.readlines(
-        formula_path_for pkg
-      ).grep(
-        /\bLibraryDep\.new/
-      ).map {|l|
-        eval l.chomp.strip
-      }.each {|l|
-        log l.inspect
-        dep.definer.requires l.names.map {|n| pkg n }
-      }
-    rescue StandardError => e
-      f = formula_path_for pkg
-      log_error "#{e.backtrace.first}: #{e.message}"
-      log "Check #{(e.backtrace.detect {|l| l[f] } || f).sub(/\:[^:]+$/, '')}."
-    end
-
-    def should_sudo
-      false
+    def should_sudo?
+      super || !File.writable?(installed_pkgs_path)
     end
   end
   end

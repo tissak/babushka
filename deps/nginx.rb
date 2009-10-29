@@ -30,19 +30,22 @@ dep 'self signed cert' do
   meet { generate_self_signed_cert }
 end
 
-def build_nginx opts = {}
+def build_nginx
   in_build_dir {
-    get_source("http://sysoev.ru/nginx/nginx-#{opts[:nginx]}.tar.gz") and
-    get_source("http://www.grid.net.ru/nginx/download/nginx_upload_module-#{opts[:upload_module]}.tar.gz") and
-    log_shell("Building nginx (this takes a minute or two)", "sudo passenger-install-nginx-module", :input => [
-      '', # enter to continue
-      '2', # custom build
-      pathify("nginx-#{opts[:nginx]}"), # path to nginx source
-      '', # accept /opt/nginx target path
-      "--with-http_ssl_module --add-module='#{pathify "nginx_upload_module-#{opts[:upload_module]}"}'",
-      '', # confirm settings
-      '', # enter to continue
-      '' # done
+    get_source("http://sysoev.ru/nginx/nginx-#{var(:versions)[:nginx]}.tar.gz") and
+    get_source("http://www.grid.net.ru/nginx/download/nginx_upload_module-#{var(:versions)[:upload_module]}.tar.gz") and
+    log_shell("Building nginx (this takes a minute or two)",
+      "sudo passenger-install-nginx-module",
+      :sudo => true,
+      :input => [
+        '', # enter to continue
+        '2', # custom build
+        pathify("nginx-#{var(:versions)[:nginx]}"), # path to nginx source
+        '', # accept /opt/nginx target path
+        "--with-http_ssl_module --add-module='#{pathify "nginx_upload_module-#{var(:versions)[:upload_module]}"}'",
+        '', # confirm settings
+        '', # enter to continue
+        '' # done
       ].join("\n")
     )
   }
@@ -85,33 +88,31 @@ dep 'webserver running' do
       result "There is #{result ? 'something' : 'nothing'} listening on #{result ? result.scan(/[0-9.*]+[.:]80/).first : 'port 80'}", :result => result
     end
   }
-  meet {
-    if linux?
-      sudo '/etc/init.d/nginx start'
-    elsif osx?
-      log_error "launchctl should have already started nginx. Check /var/log/system.log for errors."
-    end
-  }
+  meet :on => :linux do
+    sudo '/etc/init.d/nginx start'
+  end
+  meet :on => :osx do
+    log_error "launchctl should have already started nginx. Check /var/log/system.log for errors."
+  end
 end
 
 dep 'webserver startup script' do
-  requires 'webserver installed', 'rcconf'
-  met? {
-    if linux?
-      shell("rcconf --list").val_for('nginx') == 'on'
-    elsif osx?
-      !sudo('launchctl list').val_for('org.nginx').blank?
-    end
-  }
-  meet {
-    if linux?
+  requires 'webserver installed'
+  on :linux do
+    requires 'rcconf'
+    met? { shell("rcconf --list").val_for('nginx') == 'on' }
+    meet {
       render_erb 'nginx/nginx.init.d.erb', :to => '/etc/init.d/nginx', :perms => '755', :sudo => true
       sudo 'update-rc.d nginx defaults'
-    elsif osx?
+    }
+  end
+  on :osx do
+    met? { !sudo('launchctl list').val_for('org.nginx').blank? }
+    meet {
       render_erb 'nginx/nginx.launchd.erb', :to => '/Library/LaunchDaemons/org.nginx.plist', :sudo => true
       sudo 'launchctl load -w /Library/LaunchDaemons/org.nginx.plist'
-    end
-  }
+    }
+  end
 end
 
 dep 'webserver configured' do
@@ -137,7 +138,7 @@ end
 
 dep 'webserver installed' do
   requires 'passenger', 'build tools', 'libssl headers', 'zlib headers'
-  merge :versions, {:nginx => '0.8.15', :upload_module => '2.0.9'}
+  merge :versions, {:nginx => '0.8.15', :upload_module => '2.0.10'}
   met? {
     if !File.executable?('/opt/nginx/sbin/nginx')
       unmet "nginx isn't installed"
@@ -152,5 +153,5 @@ dep 'webserver installed' do
       end
     end
   }
-  meet { build_nginx var(:versions) }
+  meet { build_nginx }
 end

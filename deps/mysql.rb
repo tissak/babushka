@@ -30,14 +30,11 @@ end
 
 pkg 'mysql software' do
   installs {
-    apt %w[mysql-server libmysqlclient15-dev]
-    macports 'mysql5-server'
-    homebrew 'mysql'
+    via :apt, %w[mysql-server libmysqlclient15-dev]
+    via :macports, 'mysql5-server'
   }
   provides 'mysql'
-  after {
-    if osx?
-      sudo "ln -s #{Babushka::MacportsHelper.prefix / 'lib/mysql5/bin/mysql*'} #{Babushka::MacportsHelper.prefix / 'bin/'}"
-    end
-  }
+  after :on => :osx do
+    sudo "ln -s #{Babushka::MacportsHelper.prefix / 'lib/mysql5/bin/mysql*'} #{Babushka::MacportsHelper.prefix / 'bin/'}"
+  end
 end

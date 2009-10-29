@@ -12,11 +12,13 @@ module Babushka
     accepts_list_for :configure_args
 
     accepts_block_for(:build) { shell "make" }
-    accepts_block_for(:install) { sudo "make install" }
+    accepts_block_for(:install) { pkg_manager.install_src! 'make install' }
+
+    def pkg_manager
+      SrcHelper
+    end
 
     def process
-      super
-
       requires 'build tools'
       internal_setup {
         returning(parse_uris) {

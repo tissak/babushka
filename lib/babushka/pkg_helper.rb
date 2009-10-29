@@ -9,7 +9,7 @@ module Babushka
       {
         :osx => BrewHelper,
         :linux => AptHelper
-      }[uname]
+      }[host.system]
     end
 
     def manager_dep
@@ -17,6 +17,7 @@ module Babushka
     end
 
     def has? pkg, opts = {}
+      pkg = ver(pkg)
       returning _has?(pkg) do |matching_version|
         matching_pkg = ver(pkg.name, (matching_version if matching_version.is_a?(VersionStr)))
         unless opts[:log] == false
@@ -24,8 +25,11 @@ module Babushka
         end
       end
     end
-    def install! pkgs
-      log_shell "Installing #{pkgs.join(', ')} via #{manager_key}", "#{pkg_cmd} install #{pkgs.join(' ')}", :sudo => true
+    def install! pkgs, opts = nil
+      _install! [*pkgs].map {|pkg| ver pkg }, opts
+    end
+    def _install! pkgs, opts
+      log_shell "Installing #{pkgs.join(', ')} via #{manager_key}", "#{pkg_cmd} install #{pkgs.join(' ')} #{opts}", :sudo => should_sudo?
     end
     def setup_for_install_of dep, pkgs
       true
@@ -36,15 +40,18 @@ module Babushka
     def bin_path
       prefix / 'bin'
     end
+    def present?
+      which pkg_binary
+    end
     def cmd_in_path? cmd_name
       if (_cmd_dir = cmd_dir(cmd_name)).nil?
         log_error "The '#{cmd_name}' command is not available. You probably need to add #{bin_path} to your PATH."
       else
-        cmd_dir(cmd_name).starts_with?(prefix)
+        _cmd_dir.starts_with?(prefix)
       end
     end
-    def should_sudo
-      true
+    def should_sudo?
+      !File.writable?(bin_path)
     end
     def update_pkg_lists_if_required
       true # not required by default

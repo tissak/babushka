@@ -141,7 +141,7 @@ def change_with_sed keyword, from, to, file
 end
 
 def sed
-  linux? ? 'sed' : 'gsed'
+  host.linux? ? 'sed' : 'gsed'
 end
 
 def append_to_file text, file, opts = {}
@@ -159,7 +159,7 @@ def get_source url, filename = nil
     log_error "Unsupported archive: #{filename}"
   elsif !download(url, filename)
     log_error "Failed to download #{url}."
-  elsif !log_shell("Extracting #{filename}", "rm -rf #{archive_dir} && tar -zxf #{filename}")
+  elsif !log_shell("Extracting #{filename}", "mkdir -p '#{archive_dir}' && cd '#{archive_dir}' && tar -zxf '../#{filename}' --strip-components 1")
     log_error "Couldn't extract #{pathify filename}."
     log "(maybe the download was cancelled before it finished?)"
   else
@@ -211,13 +211,18 @@ def babushka_config? path
   end
 end
 
-def confirm message, &block
-  answer = var("confirm - #{message}",
-    :message => message.chomp('?'),
+def confirm message, opts = {}, &block
+  prompter = respond_to?(:var) ? :var : :prompt_for_value
+  answer = send(prompter, message,
+    :message => message,
     :default => 'n'
   ).starts_with?('y')
 
-  block.call if answer
+  if answer
+    block.call
+  elsif opts[:otherwise]
+    log opts[:otherwise]
+  end
 end
 
 require 'yaml'

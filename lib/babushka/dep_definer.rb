@@ -6,10 +6,22 @@ module Babushka
 
     attr_reader :payload, :source_path
 
-    class_inheritable_accessor :default_blocks
-
     delegate :name, :to => :dependency
     delegate :set, :merge, :var, :define_var, :to => :runner
+
+    def default_blocks
+      self.class.default_blocks
+    end
+    def self.default_blocks
+      merged_default_blocks_for self
+    end
+    def self.merged_default_blocks_for klass
+      parent_values = klass == DepDefiner ? {} : merged_default_blocks_for(klass.superclass)
+      parent_values.merge(default_blocks_for(klass))
+    end
+    def self.default_blocks_for klass
+      (@@default_blocks ||= Hashish.hash)[klass]
+    end
 
     def initialize dep, &block
       @dep = dep
@@ -26,8 +38,13 @@ module Babushka
       @dep.runner
     end
 
-    def process
+    def define_and_process
+      process
       instance_eval &@block unless @block.nil?
+    end
+
+    def process
+      true # overridden in subclassed definers
     end
 
     def self.current_load_path
@@ -49,6 +66,7 @@ module Babushka
         rescue Exception => e
           log_error "#{e.backtrace.first}: #{e.message}"
           log "Check #{(e.backtrace.detect {|l| l[f] } || f).sub(/\:in [^:]+$/, '')}."
+          debug e.backtrace * "\n"
           return nil
         end
       }
@@ -56,7 +74,7 @@ module Babushka
     end
 
     def self.accepts_block_for method_name, &default_block
-      (self.default_blocks ||= {})[method_name] = default_block
+      default_blocks_for(self)[method_name] = default_block
       class_eval %Q{
         def #{method_name} *args, &block
           payload[#{method_name.inspect}] ||= {}
@@ -71,10 +89,11 @@ module Babushka
     end
 
     def default_task task_name
+      differentiator = host.differentiator_for payload[task_name].keys
       L{
         send({:met? => :log_extra, :meet => :log_extra}[task_name] || :debug, [
           "#{@dep.name} / #{task_name} not defined",
-          "#{" for #{uname_str}" unless (@dep.send(:payload)[task_name] || {})[:all].nil?}",
+          "#{" for #{differentiator}" unless differentiator.nil?}",
           {
             :met => ", moving on",
             :meet => " - nothing to do"
@@ -89,12 +108,16 @@ module Babushka
     private
 
     def store_block_for method_name, args, block
-      opts = {:on => :all}.merge(args.first || {})
-      payload[method_name][opts[:on]] = block
+      payload[method_name] ||= {}
+      opts = {:on => :unassigned}.merge(args.first || {})
+      store_block_for method_name, [{:on => :all}], payload[method_name].delete(:unassigned) unless payload[method_name][:unassigned].nil?
+      [method_name, payload[method_name][opts[:on]] = block]
     end
 
     def block_for method_name
-      payload[method_name][uname] || payload[method_name][:all] || (self.class.default_blocks || {})[method_name]
+      payload[method_name][(host.match_list & payload[method_name].keys).push(:unassigned).first] ||
+      default_blocks[method_name] ||
+      default_task(method_name)
     end
 
     def self.set_up_delegating_for method_name

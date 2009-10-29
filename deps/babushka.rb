@@ -9,7 +9,6 @@ dep 'babushka in path' do
   met? { which 'babushka' }
   meet {
     log_shell "Linking babushka into #{var(:install_prefix) / 'bin'}", %Q{ln -sf "#{var(:install_prefix) / 'babushka/bin/babushka.rb'}" "#{var(:install_prefix) / 'bin/babushka'}"}
-    shell %Q{chmod +x "#{var(:install_prefix) / 'bin/babushka'}"}
   }
 end
 
@@ -25,14 +24,23 @@ dep 'babushka installed' do
 end
 
 dep 'writable install location' do
-  requires 'admins can sudo'
-  met? { File.writable? var(:install_prefix) }
+  requires 'install location exists', 'admins can sudo'
+  met? {
+    returning File.writable? var(:install_prefix) do |result|
+      log "#{var :install_prefix} isn't writable by #{shell 'whoami'}."
+    end
+  }
   meet {
     confirm "About to enable write access to #{var :install_prefix} for admin users - is that OK?" do
       sudo %Q{chgrp -R admin '#{var :install_prefix}'}
       sudo %Q{chmod -R g+w '#{var :install_prefix}'}
     end
   }
+end
+
+dep 'install location exists' do
+  met? { File.directory? var(:install_prefix) / 'bin' }
+  meet { sudo "mkdir -p '#{var(:install_prefix) / 'bin'}'" }
 end
 
 ext 'install location in path' do

@@ -8,23 +8,20 @@ def setup_test_lambdas
   @lambda_hello = L{ "hello world!" }
 end
 
-def test_accepts_block_for_response accepter_name, lambda, value, opts = nil
+def test_accepts_block_for_response accepter_name, lambda, value, opts = {}
   DepDefiner.accepts_block_for accepter_name
   dep 'accepts_block_for' do
-    if opts.nil?
-      send accepter_name, &lambda
-    else
-      send accepter_name, opts, &lambda
-    end
+    send accepter_name, opts, &lambda
   end
-  Dep('accepts_block_for').definer.send(accepter_name).should == value
+  on = opts[:on].nil? ? :unassigned : host.system
+  Dep('accepts_block_for').definer.payload[accepter_name][on].should == value
 end
 
 def make_test_deps
   dep 'build tools' do
     requires {
-      osx 'xcode tools'
-      linux ['build-essential', 'autoconf']
+      on :osx, 'xcode tools'
+      on :linux, 'build-essential', 'autoconf'
     }
   end
 end

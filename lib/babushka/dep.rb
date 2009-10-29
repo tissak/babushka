@@ -28,7 +28,7 @@ module Babushka
       @vars = {}
       @runner = runner_class.new self
       @definer = definer_class.new self, &block
-      @definer.process
+      @definer.define_and_process
       debug "\"#{name}\" depends on #{payload[:requires].inspect}"
       Dep.register self
     end
@@ -100,9 +100,8 @@ module Babushka
       log name, :closing_status => (task.dry_run? ? :dry_run : true) do
         if task.callstack.include? self
           log_error "Oh crap, endless loop! (#{task.callstack.push(self).drop_while {|dep| dep != self }.map(&:name).join(' -> ')})"
-        elsif ![:all, uname].include?(opts[:for])
-          log_extra "not required on #{uname_str}."
-          true
+        elsif !host.matches?(opts[:for])
+          log_ok "Not required on #{host.differentiator_for opts[:for]}."
         else
           task.callstack.push self
           returning process_in_dir do
@@ -168,12 +167,14 @@ module Babushka
 
     def call_task task_name
       # log "calling #{name} / #{task_name}"
-      runner.instance_eval &(@definer.send(task_name) || @definer.default_task(task_name))
+      runner.instance_eval &@definer.send(task_name)
     rescue StandardError => e
       log "#{e.class} during '#{name}' / #{task_name}{}.".colorize('red')
       log "#{e.backtrace.first}: #{e.message}".colorize('red')
-      dep_callpoint = e.backtrace.detect {|l| l[definer.source_path] }
+      dep_callpoint = e.backtrace.detect {|l| l[definer.source_path] } unless definer.source_path.nil?
       log "Check #{dep_callpoint}." unless dep_callpoint.nil?
+      debug e.backtrace * "\n"
+      Base.task.reportable = true
       :fail
     end
 

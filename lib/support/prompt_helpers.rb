@@ -4,37 +4,71 @@ module Babushka
       prompt_for_value(message, opts.merge(
         :retry => "Doesn't exist, or not a directory."
       )) {|value|
-        File.directory? value || ''
+        File.directory? pathify(value || '')
       }
     end
 
-    def prompt_for_value message, in_opts = {}
+    def prompt_for_value message, in_opts = {}, &block
       opts = {
         :prompt => '? '
       }.merge in_opts
 
-      message = "#{message}#{" #{opts[:dynamic] ? '{' : '['}#{opts[:default]}#{opts[:dynamic] ? '}' : ']'}" if opts[:default]}"
+      prompt_and_read_value prompt_message(message, opts), opts, &block
+    end
+
+
+    private
+
+    def prompt_message message, opts
+      if opts[:choices] && opts[:choice_descriptions].blank?
+        "#{message.chomp '?'} (#{opts[:choices] * ','})"
+      else
+        message.chomp '?'
+      end + "#{" #{opts[:dynamic] ? '{' : '['}#{opts[:default]}#{opts[:dynamic] ? '}' : ']'}" if opts[:default]}"
+    end
+
+    def log_choice_descriptions descriptions
+      unless descriptions.blank?
+        max_length = descriptions.keys.map(&:length).max
+        log "There are #{descriptions.length} choices:"
+        descriptions.each_pair {|choice,description|
+          log "#{choice.ljust(max_length)} - #{description}"
+        }
+      end
+    end
+
+    def prompt_and_read_value message, opts, &block
+      log_choice_descriptions opts[:choice_descriptions]
+
       log message, :newline => false
 
       if Base.task.defaults? && opts[:default]
         puts '.'
         opts[:default]
       else
-        read_value_from_prompt message, opts
+        read_value_from_prompt message, opts, &block
       end
     end
 
-    def read_value_from_prompt message, opts
+    def read_value_from_prompt message, opts, &block
       value = nil
-      loop do
+      10.times do
         value = read_from_prompt(opts[:prompt].end_with(' ')).chomp
-        if block_given?
-          break if yield value
+        value = opts[:default] if value.blank? && !(opts[:default] && opts[:default].empty?)
+
+        error_message = if opts[:choices] && !value.in?(opts[:choices])
+          "That's not a valid choice"
+        elsif block_given? && !yield(value)
+          opts[:retry]
+        elsif value.blank? && !(opts[:default] && opts[:default].empty?)
+          "That was blank"
         else
-          value = opts[:default] if value.blank? && !(opts[:default] && opts[:default].empty?)
-          break unless value.blank? && !(opts[:default] && opts[:default].empty?)
+          break # success
+          nil
         end
-        log "#{opts[:retry] || 'That was blank.'} #{message}", :newline => false
+
+        value = nil
+        log "#{error_message.end_with('.')} #{message}", :newline => false
       end
       value
     end
